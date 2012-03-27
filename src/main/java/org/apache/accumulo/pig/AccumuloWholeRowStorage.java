@@ -17,16 +17,21 @@
 package org.apache.accumulo.pig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map.Entry;
+import java.util.SortedMap;
 
+import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.mapreduce.AccumuloInputFormat;
 import org.apache.accumulo.core.client.mapreduce.AccumuloOutputFormat;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
+import org.apache.accumulo.core.iterators.user.WholeRowIterator;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.ColumnVisibility;
 import org.apache.accumulo.core.util.Pair;
@@ -46,6 +51,7 @@ import org.apache.pig.StoreFuncInterface;
 import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.DataByteArray;
+import org.apache.pig.data.DefaultDataBag;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
 
@@ -60,9 +66,9 @@ import org.apache.pig.data.TupleFactory;
  *  (key, colfam, colqual, value)
  * 
  */
-public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
+public class AccumuloWholeRowStorage extends LoadFunc implements StoreFuncInterface
 {
-    private static final Log logger = LogFactory.getLog(AccumuloStorage.class);
+    private static final Log LOG = LogFactory.getLog(AccumuloWholeRowStorage.class);
 
     private Configuration conf;
     private RecordReader<Key, Value> reader;
@@ -81,7 +87,7 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
     String start = null;
     String end = null;
 
-    public AccumuloStorage(){}
+    public AccumuloWholeRowStorage(){}
 
 	@Override
     public Tuple getNext() throws IOException
@@ -96,14 +102,24 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
             Value value = (Value)reader.getCurrentValue();
             assert key != null && value != null;
             
+            SortedMap<Key, Value> rowKVs =  WholeRowIterator.decodeRow(key, value);
+            List<Tuple> columns = new ArrayList<Tuple>(rowKVs.size());
+            for(Entry<Key, Value> e : rowKVs.entrySet())
+            {
+            	columns.add(columnToTuple(
+            			e.getKey().getColumnFamily(), 
+            			e.getKey().getColumnQualifier(), 
+            			e.getKey().getColumnVisibility(), 
+            			e.getKey().getTimestamp(), 
+            			e.getValue())
+            		);
+            }
+            
             // and wrap it in a tuple
-	        Tuple tuple = TupleFactory.getInstance().newTuple(6);
+	        Tuple tuple = TupleFactory.getInstance().newTuple(2);
             tuple.set(0, new DataByteArray(key.getRow().getBytes()));
-            tuple.set(1, new DataByteArray(key.getColumnFamily().getBytes()));
-            tuple.set(2, new DataByteArray(key.getColumnQualifier().getBytes()));
-            tuple.set(3, new DataByteArray(key.getColumnVisibility().getBytes()));
-            tuple.set(4, new Long(key.getTimestamp()));
-            tuple.set(5, new DataByteArray(value.get()));
+            tuple.set(1, new DefaultDataBag(columns));
+            
             return tuple;
         }
         catch (InterruptedException e)
@@ -112,6 +128,17 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
         }
     }    
 
+	private Tuple columnToTuple(Text colfam, Text colqual, Text colvis, long ts, Value val) throws IOException
+    {
+        Tuple tuple = TupleFactory.getInstance().newTuple(5);
+        tuple.set(0, new DataByteArray(colfam.getBytes()));
+        tuple.set(1, new DataByteArray(colqual.getBytes()));
+        tuple.set(2, new DataByteArray(colvis.getBytes()));
+        tuple.set(3, new Long(ts));
+        tuple.set(4, new DataByteArray(val.get()));
+        return tuple;
+    }
+	
     @Override
     public InputFormat getInputFormat()
     {
@@ -126,7 +153,7 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
 
     private void setLocationFromUri(String location) throws IOException
     {
-        // ex: accumulo://table1?instance=myinstance&user=root&password=secret&zookeepers=127.0.0.1:2181&auths=PRIVATE,PUBLIC&columns=col1|cq1,col2|cq2&start=abc&end=z
+        // ex: accumulo://table1?instance=myinstance&user=root&password=secret&zookeepers=127.0.0.1:2181&auths=PRIVATE,PUBLIC&columns=col1:cq1,col2:cq2&start=abc&end=z
         String names[];
         String columns = "";
         try
@@ -188,7 +215,7 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
         }
         catch (Exception e)
         {
-            throw new IOException("Expected 'accumulo://<table>[?instance=<instanceName>&user=<user>&password=<password>&zookeepers=<zookeepers>&auths=<authorizations>&[start=startRow,end=endRow,columns=[cf1|cq1,cf2|cq2,...]]]': " + e.getMessage());
+            throw new IOException("Expected 'accumulo://<table>[?instance=<instanceName>&user=<user>&password=<password>&zookeepers=<zookeepers>&auths=<authorizations>&[start=startRow,end=endRow,columns=[cf1:cq1,cf2:cq2,...]]]': " + e.getMessage());
         }
     }
 
@@ -203,9 +230,13 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
         	AccumuloInputFormat.setInputInfo(conf, user, password.getBytes(), table, authorizations);
             AccumuloInputFormat.setZooKeeperInstance(conf, inst, zookeepers);
             if(columnFamilyColumnQualifierPairs.size() > 0)
+            {
+            	LOG.info("columns: "+columnFamilyColumnQualifierPairs);
             	AccumuloInputFormat.fetchColumns(conf, columnFamilyColumnQualifierPairs);
+            }
             
             AccumuloInputFormat.setRanges(conf, Collections.singleton(new Range(start, end)));
+            AccumuloInputFormat.addIterator(conf, new IteratorSetting(10, WholeRowIterator.class));
         }
     }
 
@@ -262,29 +293,19 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
         this.writer = writer;
     }
 
-    public void putNext(Tuple t) throws ExecException, IOException
+    public void putNext(Tuple tuple) throws ExecException, IOException
     {
-        Mutation mut = new Mutation(objToText(t.get(0)));
-        Text cf = objToText(t.get(1));
-    	Text cq = objToText(t.get(2));
-    	
-        if(t.size() > 4)
+        Mutation mut = new Mutation(objToText(tuple.get(0)));
+        DefaultDataBag columns = (DefaultDataBag)tuple.get(1);
+        for(Tuple column : columns)
         {
-        	Text cv = objToText(t.get(3));
-        	Value val = new Value(objToBytes(t.get(4)));
-        	if(cv.getLength() == 0)
-        	{
-        		mut.put(cf, cq, val);
-        	}
-        	else
-        	{
-        		mut.put(cf, cq, new ColumnVisibility(cv), val);
-        	}
-        }
-        else
-        {
-        	Value val = new Value(objToBytes(t.get(3)));
-        	mut.put(cf, cq, val);
+        	Text cf = objToText(column.get(0));
+        	Text cq = objToText(column.get(1));
+        	Text cv = objToText(column.get(2));
+        	Long ts = (Long)column.get(3);
+        	Value val = new Value(objToBytes(column.get(4)));
+        	
+        	mut.put(cf, cq, new ColumnVisibility(cv), ts, val);
         }
         
         try {
@@ -298,7 +319,7 @@ public class AccumuloStorage extends LoadFunc implements StoreFuncInterface
     {
     	return new Text(objToBytes(o));
     }
-    
+        
     private static byte[] objToBytes(Object o)
     {
     	if (o instanceof String) {
