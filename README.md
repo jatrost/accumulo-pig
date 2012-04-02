@@ -8,18 +8,18 @@ download the JARs needed by pig
 
 print the register statements we will need in pig
 
-    for JAR in lib/*.jar target/accumulo-pig-1.5.0-incubating-SNAPSHOT.jar ; 
+    for JAR in lib/*.jar target/accumulo-pig-1.4.0.jar ; 
     do 
         echo register `pwd`/$JAR; 
     done
 
 Example output
 
-    register /home/developer/workspace/accumulo-pig/lib/accumulo-core-1.5.0-incubating-SNAPSHOT.jar
-    register /home/developer/workspace/accumulo-pig/lib/cloudtrace-1.5.0-incubating-SNAPSHOT.jar
+    register /home/developer/workspace/accumulo-pig/lib/accumulo-core-1.4.0.jar
+    register /home/developer/workspace/accumulo-pig/lib/cloudtrace-1.4.0.jar
     register /home/developer/workspace/accumulo-pig/lib/libthrift-0.6.1.jar
     register /home/developer/workspace/accumulo-pig/lib/zookeeper-3.3.1.jar
-    register /home/developer/workspace/accumulo-pig/target/accumulo-pig-1.5.0-incubating-SNAPSHOT.jar
+    register /home/developer/workspace/accumulo-pig/target/accumulo-pig-1.4.0.jar
 
 Run Pig, copy the register statements above and paste them into the pig terminal.  Then you can LOAD from and STORE into accumulo.
 
@@ -27,11 +27,11 @@ Run Pig, copy the register statements above and paste them into the pig terminal
     2012-03-02 08:15:25,808 [main] INFO  org.apache.pig.Main - Logging error messages to: /home/developer/workspace/accumulo-pig/pig_1330694125807.log
     2012-03-02 08:15:25,937 [main] INFO  org.apache.pig.backend.hadoop.executionengine.HExecutionEngine - Connecting to hadoop file system at: hdfs://127.0.0.1/
     2012-03-02 08:15:26,032 [main] INFO  org.apache.pig.backend.hadoop.executionengine.HExecutionEngine - Connecting to map-reduce job tracker at: 127.0.0.1:9001
-    grunt> register /home/developer/workspace/accumulo-pig/lib/accumulo-core-1.5.0-incubating-SNAPSHOT.jar
-    grunt> register /home/developer/workspace/accumulo-pig/lib/cloudtrace-1.5.0-incubating-SNAPSHOT.jar
+    grunt> register /home/developer/workspace/accumulo-pig/lib/accumulo-core-1.4.0.jar
+    grunt> register /home/developer/workspace/accumulo-pig/lib/cloudtrace-1.4.0.jar
     grunt> register /home/developer/workspace/accumulo-pig/lib/libthrift-0.6.1.jar
     grunt> register /home/developer/workspace/accumulo-pig/lib/zookeeper-3.3.1.jar
-    grunt> register /home/developer/workspace/accumulo-pig/target/accumulo-pig-1.5.0-incubating-SNAPSHOT.jar
+    grunt> register /home/developer/workspace/accumulo-pig/target/accumulo-pig-1.4.0.jar
     grunt> 
     grunt> DATA = LOAD 'accumulo://webpage?instance=inst&user=root&password=secret&zookeepers=127.0.0.1:2181&columns=f:cnt' 
     >>    using org.apache.accumulo.pig.AccumuloStorage() AS (row, cf, cq, cv, ts, val);
