@@ -21,9 +21,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.accumulo.core.client.AccumuloSecurityException;
+import org.apache.accumulo.core.client.BatchWriterConfig;
 import org.apache.accumulo.core.client.mapreduce.AccumuloInputFormat;
 import org.apache.accumulo.core.client.mapreduce.AccumuloOutputFormat;
+import org.apache.accumulo.core.client.mapreduce.lib.util.ConfiguratorBase;
+import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Range;
@@ -204,30 +209,32 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
         conf = job.getConfiguration();
         setLocationFromUri(location);
         
-        if(!conf.getBoolean(AccumuloInputFormat.class.getSimpleName()+".configured", false))
+        if(!ConfiguratorBase.isConnectorInfoSet(AccumuloInputFormat.class, conf))
         {
-        	AccumuloInputFormat.setInputInfo(conf, user, password.getBytes(), table, authorizations);
-            AccumuloInputFormat.setZooKeeperInstance(conf, inst, zookeepers);
+        	AccumuloInputFormat.setInputTableName(job, table);
+        	AccumuloInputFormat.setScanAuthorizations(job, authorizations);
+            AccumuloInputFormat.setZooKeeperInstance(job, inst, zookeepers);
+            
+        	try {
+				AccumuloInputFormat.setConnectorInfo(job, user, new PasswordToken(password.getBytes()));
+			} catch (AccumuloSecurityException e) {
+				throw new IOException(e);
+			}
+        	
             if(columnFamilyColumnQualifierPairs.size() > 0)
             {
             	LOG.info("columns: "+columnFamilyColumnQualifierPairs);
-            	AccumuloInputFormat.fetchColumns(conf, columnFamilyColumnQualifierPairs);
+            	AccumuloInputFormat.fetchColumns(job, columnFamilyColumnQualifierPairs);
             }
             
-            AccumuloInputFormat.setRanges(conf, Collections.singleton(new Range(start, end)));
+            AccumuloInputFormat.setRanges(job, Collections.singleton(new Range(start, end)));
             configureInputFormat(conf);
         }
     }
 
-    protected void configureInputFormat(Configuration conf)
-    {
-    	
-    }
+    protected void configureInputFormat(Configuration conf){}
     
-    protected void configureOutputFormat(Configuration conf)
-    {
-    	
-    }
+    protected void configureOutputFormat(Configuration conf){}
     
     @Override
     public String relativeToAbsolutePath(String location, Path curDir) throws IOException
@@ -236,16 +243,10 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     }
 
     @Override
-    public void setUDFContextSignature(String signature)
-    {
-        
-    }
+    public void setUDFContextSignature(String signature){}
 
     /* StoreFunc methods */
-    public void setStoreFuncUDFContextSignature(String signature)
-    {
-        
-    }
+    public void setStoreFuncUDFContextSignature(String signature){}
 
     public String relToAbsPathForStoreLocation(String location, Path curDir) throws IOException
     {
@@ -256,15 +257,32 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     {
         conf = job.getConfiguration();
         setLocationFromUri(location);
-        
-        if(!conf.getBoolean(AccumuloOutputFormat.class.getSimpleName()+".configured", false))
-        {
-        	AccumuloOutputFormat.setOutputInfo(conf, user, password.getBytes(), true, table);
-            AccumuloOutputFormat.setZooKeeperInstance(conf, inst, zookeepers);
-            AccumuloOutputFormat.setMaxLatency(conf, maxLatency);
-            AccumuloOutputFormat.setMaxMutationBufferSize(conf, maxMutationBufferSize);
-            AccumuloOutputFormat.setMaxWriteThreads(conf, maxWriteThreads);
-            configureOutputFormat(conf);
+
+        try
+        { 
+           if(!ConfiguratorBase.isConnectorInfoSet(AccumuloOutputFormat.class, conf))
+           {
+        	   BatchWriterConfig bwConfig = new BatchWriterConfig();
+        	   bwConfig.setMaxLatency(maxLatency, TimeUnit.MILLISECONDS);
+        	   bwConfig.setMaxMemory(maxMutationBufferSize);
+        	   bwConfig.setMaxWriteThreads(maxWriteThreads);
+        	   AccumuloOutputFormat.setBatchWriterOptions(job, bwConfig);
+        	   
+        	   AccumuloOutputFormat.setZooKeeperInstance(job, inst, zookeepers);
+        	   AccumuloOutputFormat.setDefaultTableName(job, table);
+        	   AccumuloOutputFormat.setCreateTables(job, true);
+        	   
+				try {
+					AccumuloOutputFormat.setConnectorInfo(job, user, new PasswordToken(password.getBytes()));
+				} catch (AccumuloSecurityException e) {
+					throw new IOException(e);
+				}
+
+                configureOutputFormat(conf);
+           }
+        }
+        catch(java.lang.IllegalStateException e1){
+            e1.printStackTrace();
         }
     }
 
@@ -299,4 +317,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     }
 
     public void cleanupOnFailure(String failure, Job job){}
+    
+	@Override
+	public void cleanupOnSuccess(String location, Job job) throws IOException {}
 }

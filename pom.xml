@@ -22,7 +22,7 @@
   <groupId>org.apache.accumulo</groupId>
   <artifactId>accumulo-pig</artifactId>
   <packaging>jar</packaging>
-  <version>1.4.0</version>
+  <version>1.5.0-SNAPSHOT</version>
   <name>accumulo-pig</name>
   <url>http://maven.apache.org</url>
 
@@ -36,35 +36,44 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
-      <version>0.20.2</version>
+      <version>1.1.1</version>
     </dependency>
 
     <dependency>
       <groupId>org.apache.pig</groupId>
       <artifactId>pig</artifactId>
-      <version>0.9.2</version>
+      <version>0.11.0</version>
+    </dependency>
+
+    <!-- Needed by Apache Pig 0.11.0 -->
+    <dependency>
+        <groupId>joda-time</groupId>
+        <artifactId>joda-time</artifactId>
+        <version>1.6</version>
     </dependency>
 
 	<dependency>
         <groupId>org.apache.accumulo</groupId>
         <artifactId>accumulo-core</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>
         <artifactId>zookeeper</artifactId>
-    <version>3.3.1</version>
+        <version>3.3.1</version>
       </dependency>
       <dependency>
         <groupId>org.apache.thrift</groupId>
         <artifactId>libthrift</artifactId>
-    <version>0.6.1</version>
+        <version>0.9.0</version>
       </dependency>
+<!--
       <dependency>
         <groupId>org.apache.accumulo</groupId>
         <artifactId>cloudtrace</artifactId>
     <version>1.4.0</version>
-      </dependency>
+      </dependency> 
+-->
 
 
   </dependencies>
@@ -79,6 +88,31 @@
       <target>1.6</target>
    </configuration>
 </plugin>
+
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <configuration>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+          <archive>
+            <manifest>
+              <mainClass/>
+            </manifest>
+          </archive>
+        </configuration>
+        <executions>
+          <execution>
+            <id>make-assembly</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+
  </plugins>
 </build>
 

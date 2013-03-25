@@ -64,29 +64,35 @@ public class AccumuloStorage extends AbstractAccumuloStorage
 	
 	@Override
 	public Collection<Mutation> getMutations(Tuple tuple) throws ExecException, IOException {
-		Mutation mut = new Mutation(Utils.objToText(tuple.get(0)));
-        Text cf = Utils.objToText(tuple.get(1));
-    	Text cq = Utils.objToText(tuple.get(2));
-    	
-        if(tuple.size() > 4)
-        {
-        	Text cv = Utils.objToText(tuple.get(3));
-        	Value val = new Value(Utils.objToBytes(tuple.get(4)));
-        	if(cv.getLength() == 0)
-        	{
-        		mut.put(cf, cq, val);
-        	}
-        	else
-        	{
-        		mut.put(cf, cq, new ColumnVisibility(cv), val);
-        	}
-        }
-        else
-        {
-        	Value val = new Value(Utils.objToBytes(tuple.get(3)));
-        	mut.put(cf, cq, val);
-        }
-        
-        return Collections.singleton(mut);
+		
+		try {
+			Mutation mut = new Mutation(Utils.objToText(tuple.get(0)));
+			Text cf = Utils.objToText(tuple.get(1));
+			Text cq = Utils.objToText(tuple.get(2));
+			
+			if(tuple.size() > 4)
+			{
+				Text cv = Utils.objToText(tuple.get(3));
+				Value val = new Value(Utils.objToBytes(tuple.get(4)));
+				if(cv.getLength() == 0)
+				{
+					mut.put(cf, cq, val);
+				}
+				else
+				{
+					mut.put(cf, cq, new ColumnVisibility(cv), val);
+				}
+			}
+			else
+			{
+				Value val = new Value(Utils.objToBytes(tuple.get(3)));
+				mut.put(cf, cq, val);
+			}
+			
+			return Collections.singleton(mut);
+		} catch (IOException e) {
+		System.err.println("Error on Tuple: "+tuple);
+		throw e;
+	}
 	}
 }
