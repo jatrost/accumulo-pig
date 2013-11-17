@@ -1,3 +1,9 @@
+Development of this project has moved to the Apache git repo and has mostly been picked up by Josh Elser: http://people.apache.org/~elserj/accumulo-pig/
+
+This code will remain here because it is still being used in production by some.
+
+---
+
 build the JAR (Note, you will need to download the accumulo src, build it, and install it into your maven repo before this will work)
 
     mvn package
